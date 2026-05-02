@@ -1,9 +1,10 @@
 import uuid
+import os
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, Float, DateTime, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./analyses.db"
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./analyses.db")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}

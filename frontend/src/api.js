@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api' // Uses vite proxy
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api'
 });
 
 export const analyzeResume = async (formData) => {

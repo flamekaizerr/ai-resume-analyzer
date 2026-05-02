@@ -1,0 +1,18 @@
+John Doe
+Software Engineer
+Email: john.doe@email.com
+
+SUMMARY
+Passionate software engineer with 3 years of experience building scalable backend services.
+
+SKILLS
+Python, Django, PostgreSQL, Docker, Git, REST APIs, HTML, CSS.
+
+EXPERIENCE
+Backend Developer at TechCorp (2021 - Present)
+- Designed and developed REST APIs using Django and Python.
+- Containerized applications using Docker.
+- Optimized PostgreSQL queries to improve performance by 20%.
+
+EDUCATION
+B.S. in Computer Science, State University (2017 - 2021)

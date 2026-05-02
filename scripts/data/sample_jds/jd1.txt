@@ -1,0 +1,8 @@
+We are looking for a Backend Engineer to join our fast-growing startup.
+
+Requirements:
+- 2+ years of experience with Python and frameworks like FastAPI or Django.
+- Experience with cloud platforms like AWS or GCP.
+- Containerization experience (Docker, Kubernetes).
+- Strong understanding of SQL databases (PostgreSQL preferred).
+- CI/CD knowledge is a plus.

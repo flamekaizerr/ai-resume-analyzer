@@ -1,0 +1,18 @@
+Jane Smith
+Frontend Developer
+Email: jane.smith@email.com
+
+SUMMARY
+Creative Frontend Developer skilled in building responsive, accessible web applications with modern JavaScript frameworks.
+
+SKILLS
+JavaScript, React, Tailwind CSS, HTML, CSS, Git.
+
+EXPERIENCE
+UI Developer at WebStudio (2020 - Present)
+- Built dynamic user interfaces using React and Redux.
+- Styled components with Tailwind CSS.
+- Improved accessibility and SEO scores by 15%.
+
+EDUCATION
+B.A. in Design, City College (2016 - 2020)

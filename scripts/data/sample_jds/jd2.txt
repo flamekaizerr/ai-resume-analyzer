@@ -1,0 +1,11 @@
+Hiring a Frontend Engineer!
+
+You will be responsible for:
+- Developing robust user interfaces with React and TypeScript.
+- Collaborating with designers to implement pixel-perfect layouts using Tailwind CSS.
+- Ensuring cross-browser compatibility and responsive design.
+
+Required Skills:
+- React, JavaScript/TypeScript
+- HTML, CSS, modern CSS frameworks
+- Understanding of web performance optimization

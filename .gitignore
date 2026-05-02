@@ -38,3 +38,8 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+.vercel
+.email_secret
+send_email.py
+PORTFOLIO_AGENT_INSTRUCTIONS.md

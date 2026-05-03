@@ -53,51 +53,55 @@ async def analyze_documents(
             raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
             
     # Process
-    sections = segment_resume(extracted_resume_text)
-    similarity = compute_similarity(extracted_resume_text, jd_text)
-    gap_data = analyze_gap(extracted_resume_text, jd_text)
-    feedback_bullets = generate_feedback(gap_data["missing_skills"], similarity)
+    try:
+        sections = segment_resume(extracted_resume_text)
+        similarity = compute_similarity(extracted_resume_text, jd_text)
+        gap_data = analyze_gap(extracted_resume_text, jd_text)
+        feedback_bullets = generate_feedback(gap_data["missing_skills"], similarity)
 
-    section_scores_data = compute_section_scores(
-        resume_text=extracted_resume_text,
-        jd_text=jd_text,
-        resume_sections=sections,
-        resume_skills=gap_data["resume_skills"],
-        jd_skills=gap_data["jd_skills"],
-        similarity_score=similarity,
-    )
+        section_scores_data = compute_section_scores(
+            resume_text=extracted_resume_text,
+            jd_text=jd_text,
+            resume_sections=sections,
+            resume_skills=gap_data["resume_skills"],
+            jd_skills=gap_data["jd_skills"],
+            similarity_score=similarity,
+        )
 
-    section_scores = SectionScores(**section_scores_data)
-    
-    record_id = uuid.uuid4()
-    
-    response_data = AnalysisResponse(
-        id=record_id,
-        timestamp=datetime.utcnow(),
-        similarity_score=similarity,
-        matched_skills=gap_data["matched_skills"],
-        missing_skills=gap_data["missing_skills"],
-        transferable_skills=gap_data["transferable_skills"],
-        section_scores=section_scores,
-        feedback=feedback_bullets
-    )
-    
-    # Save to DB
-    db_record = AnalysisRecord(
-        id=str(record_id),
-        timestamp=response_data.timestamp,
-        similarity_score=similarity,
-        matched_skills=gap_data["matched_skills"],
-        missing_skills=gap_data["missing_skills"],
-        transferable_skills=gap_data["transferable_skills"],
-        section_scores=section_scores.model_dump(),
-        feedback=feedback_bullets
-    )
-    db.add(db_record)
-    db.commit()
-    db.refresh(db_record)
-    
-    return response_data
+        section_scores = SectionScores(**section_scores_data)
+        
+        record_id = uuid.uuid4()
+        
+        response_data = AnalysisResponse(
+            id=record_id,
+            timestamp=datetime.utcnow(),
+            similarity_score=similarity,
+            matched_skills=gap_data["matched_skills"],
+            missing_skills=gap_data["missing_skills"],
+            transferable_skills=gap_data["transferable_skills"],
+            section_scores=section_scores,
+            feedback=feedback_bullets
+        )
+        
+        # Save to DB
+        db_record = AnalysisRecord(
+            id=str(record_id),
+            timestamp=response_data.timestamp,
+            similarity_score=similarity,
+            matched_skills=gap_data["matched_skills"],
+            missing_skills=gap_data["missing_skills"],
+            transferable_skills=gap_data["transferable_skills"],
+            section_scores=section_scores.model_dump(),
+            feedback=feedback_bullets
+        )
+        db.add(db_record)
+        db.commit()
+        db.refresh(db_record)
+        
+        return response_data
+    except Exception as analyze_error:
+        import traceback
+        raise HTTPException(status_code=500, detail=traceback.format_exc())
 
 @app.get("/analysis/{analysis_id}", response_model=AnalysisResponse)
 def get_analysis(analysis_id: str, db: Session = Depends(get_db)):

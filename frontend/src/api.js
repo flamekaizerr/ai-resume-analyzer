@@ -1,7 +1,11 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api'
+  baseURL: import.meta.env.VITE_API_BASE_URL || (
+    import.meta.env.PROD
+      ? 'https://flamekaizerr-ai-resume-analyzer-api.hf.space'
+      : '/api'
+  )
 });
 
 export const analyzeResume = async (formData) => {

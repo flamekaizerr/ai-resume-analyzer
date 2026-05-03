@@ -8,7 +8,7 @@ from sentence_transformers import util
 
 from models import ml_models
 
-taxonomy_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "data", "skill_taxonomy.json")
+taxonomy_path = os.path.join(os.path.dirname(__file__), "data", "skill_taxonomy.json")
 
 SOFT_SKILLS = {
     "communication",

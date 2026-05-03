@@ -1,0 +1,30 @@
+name: Sync Backend to Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/**' # Also trigger it when we update this workflow file
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Push backend folder to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add Hugging Face as a remote destination using your secret token
+          git remote add hf https://flamekaizerr:${HF_TOKEN}@huggingface.co/spaces/flamekaizerr/ai-resume-analyzer-api
+          
+          # We force push the subtree to ensure it handles split git histories successfully
+          git push hf `git subtree split --prefix backend main`:main --force

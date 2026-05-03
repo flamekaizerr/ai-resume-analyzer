@@ -10,7 +10,8 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /data
+    && mkdir -p /data \
+    && chmod 777 /data
 
 COPY requirements.txt .
 RUN pip install --upgrade pip \

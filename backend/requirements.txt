@@ -6,3 +6,4 @@ pdfminer.six>=20231228
 sentence-transformers>=2.6.1
 transformers>=4.39.3
 torch>=2.2.2
+python-multipart>=0.0.9

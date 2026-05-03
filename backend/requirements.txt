@@ -6,3 +6,4 @@ pdfminer.six==20231228
 sentence-transformers==2.6.1
 transformers==4.39.3
 python-multipart==0.0.9
+numpy<2.0.0

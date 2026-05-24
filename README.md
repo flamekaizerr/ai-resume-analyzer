@@ -1,16 +1,17 @@
 # AI Resume Analyzer
 
-A full-stack resume analysis application that compares a resume against a job description, identifies skill gaps, scores fit across key dimensions, and provides concise improvement suggestions.
+**Live App:** [https://ai-resume-analyzer-three-eosin.vercel.app/](https://ai-resume-analyzer-three-eosin.vercel.app/)
+
+I built this full-stack resume analysis application to help job seekers compare their resumes against specific job descriptions. It identifies skill gaps, scores fit across key dimensions, and provides concise improvement suggestions.
 
 ## Features
 
-- Resume and job description comparison
-- Skill gap detection for matched, missing, and transferable skills
-- Section-level scoring for technical skills, soft skills, experience, education, keywords, and overall fit
-- Deterministic feedback suggestions for missing skills
-- Analysis history and aggregate stats tracking
-- Responsive React interface with dark/light theme support
-- Lazy-loaded frontend panels for optimized production builds
+- **Smart Comparison**: Compares your resume against any job description.
+- **Skill Gap Detection**: Identifies matched, missing, and transferable skills.
+- **Detailed Scoring**: Section-level scoring for technical skills, soft skills, experience, education, keywords, and overall fit.
+- **Actionable Feedback**: Deterministic feedback suggestions for missing skills.
+- **History & Stats**: Tracks your past analyses and shows aggregate stats.
+- **Modern UI**: A responsive React interface with dark/light theme support and lazy-loaded panels for optimized performance.
 
 ## Tech Stack
 

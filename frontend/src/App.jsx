@@ -9,6 +9,7 @@ const RadarChart = lazy(() => import('./components/RadarChart'));
 const FeedbackPanel = lazy(() => import('./components/FeedbackPanel'));
 const HistoryTable = lazy(() => import('./components/HistoryTable'));
 const StatsPanel = lazy(() => import('./components/StatsPanel'));
+const AgentPanel = lazy(() => import('./components/AgentPanel'));
 
 const TabFallback = ({ label }) => (
   <div className="glass-panel panel-state">{label}</div>
@@ -17,6 +18,8 @@ const TabFallback = ({ label }) => (
 function App() {
   const [activeTab, setActiveTab] = useState('analyze');
   const [result, setResult] = useState(null);
+  const [enteredResumeText, setEnteredResumeText] = useState('');
+  const [enteredJdText, setEnteredJdText] = useState('');
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -56,8 +59,33 @@ function App() {
 
   const handleAnalysisComplete = (data) => {
     setResult(data);
+    if (data.rawResumeText) setEnteredResumeText(data.rawResumeText);
+    if (data.rawJdText) setEnteredJdText(data.rawJdText);
     setActiveTab('result');
     refreshInsights();
+  };
+
+  const handleRunAgentFromUpload = ({ jdText, resumeText }) => {
+    setEnteredResumeText(resumeText);
+    setEnteredJdText(jdText);
+    if (!result) {
+      setResult({
+        similarity_score: 0,
+        section_scores: {
+          technical_skills: 0,
+          soft_skills: 0,
+          experience_match: 0,
+          education: 0,
+          keywords: 0,
+          overall: 0
+        },
+        matched_skills: [],
+        missing_skills: [],
+        transferable_skills: [],
+        feedback: []
+      });
+    }
+    setActiveTab('result');
   };
 
   return (
@@ -92,7 +120,7 @@ function App() {
           onClick={() => setActiveTab('result')}
           disabled={!result}
         >
-          Results
+          Results & Agent
         </button>
         <button
           className={`tab-btn ${activeTab === 'tracker' ? 'active' : ''}`}
@@ -105,7 +133,12 @@ function App() {
       <main>
         {activeTab === 'analyze' && (
           <Suspense fallback={<TabFallback label="Loading analysis form..." />}>
-            <UploadPanel onAnalysisComplete={handleAnalysisComplete} />
+            <UploadPanel 
+              onAnalysisComplete={handleAnalysisComplete}
+              onRunAgent={handleRunAgentFromUpload}
+              initialJd={enteredJdText}
+              initialResume={enteredResumeText}
+            />
           </Suspense>
         )}
 
@@ -124,6 +157,13 @@ function App() {
                 />
                 <FeedbackPanel feedback={result.feedback} />
               </div>
+
+              {/* LangGraph Agent Section */}
+              <AgentPanel 
+                resumeText={enteredResumeText}
+                jdText={enteredJdText}
+                defaultGaps={result.missing_skills || []}
+              />
             </div>
           </Suspense>
         )}

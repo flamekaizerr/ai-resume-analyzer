@@ -13,6 +13,11 @@ export const analyzeResume = async (formData) => {
   return response.data;
 };
 
+export const analyzeWithAgent = async (payload) => {
+  const response = await api.post('/agent/analyze', payload);
+  return response.data;
+};
+
 export const getHistory = async () => {
   const response = await api.get('/history');
   return response.data;

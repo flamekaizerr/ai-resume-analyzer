@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { analyzeResume } from '../api';
 
-const UploadPanel = ({ onAnalysisComplete }) => {
-  const [jdText, setJdText] = useState('');
-  const [resumeText, setResumeText] = useState('');
+const UploadPanel = ({ onAnalysisComplete, onRunAgent, initialJd = '', initialResume = '' }) => {
+  const [jdText, setJdText] = useState(initialJd);
+  const [resumeText, setResumeText] = useState(initialResume);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -33,13 +33,31 @@ const UploadPanel = ({ onAnalysisComplete }) => {
 
     try {
       const data = await analyzeResume(formData);
-      onAnalysisComplete(data);
+      onAnalysisComplete({
+        ...data,
+        rawResumeText: resumeText,
+        rawJdText: jdText
+      });
     } catch (err) {
       console.error(err);
       const message = err?.response?.data?.detail || err?.message || "Analysis failed. Please try again.";
       setError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAgentClick = () => {
+    if (!jdText || !jdText.trim()) {
+      setError("Job Description is required for AI Agent Suggestions");
+      return;
+    }
+    if (!resumeText || !resumeText.trim()) {
+      setError("Please paste resume text into 'Or Paste Resume Text' to run the AI Agent");
+      return;
+    }
+    if (onRunAgent) {
+      onRunAgent({ jdText, resumeText });
     }
   };
 
@@ -76,9 +94,25 @@ const UploadPanel = ({ onAnalysisComplete }) => {
 
         {error && <div style={{ color: 'var(--danger)', marginBottom: '16px' }}>{error}</div>}
 
-        <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? 'Analyzing...' : 'Analyze Fit'}
-        </button>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button type="submit" className="btn-primary" disabled={loading} style={{ flex: '1 1 200px' }}>
+            {loading ? 'Analyzing...' : 'Analyze Fit'}
+          </button>
+          <button 
+            type="button" 
+            className="tab-btn" 
+            onClick={handleAgentClick}
+            disabled={loading}
+            style={{ 
+              flex: '1 1 200px', 
+              borderColor: 'var(--accent-color)', 
+              color: 'var(--text-primary)',
+              fontWeight: 600
+            }}
+          >
+            AI Agent Suggestions (LangGraph)
+          </button>
+        </div>
       </form>
     </div>
   );

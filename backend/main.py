@@ -5,6 +5,9 @@ from contextlib import asynccontextmanager
 import uuid
 from datetime import datetime
 
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
+
 from database import get_db, AnalysisRecord
 from schemas import AnalyzeRequest, AnalysisResponse, SectionScores
 from models import ml_models
@@ -29,6 +32,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# LangGraph AI Agent Router (additive)
+try:
+    from agent.router import router as agent_router
+    app.include_router(agent_router, prefix="/api")
+    app.include_router(agent_router, prefix="", include_in_schema=False)
+except Exception as _agent_err:
+    import logging
+    logging.getLogger(__name__).warning("Agent router could not be loaded: %s", _agent_err)
 
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_documents(

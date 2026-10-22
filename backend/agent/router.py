@@ -62,13 +62,17 @@ async def agent_analyze(request: AgentAnalyzeRequest):
         raise HTTPException(status_code=400, detail="jd_text cannot be empty")
 
     # 2. Check for API key before running graph (returns 503)
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    api_key = (
+        os.environ.get("OPENROUTER_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+        or os.environ.get("GEMINI_API_KEY")
+    )
     if not api_key:
         raise HTTPException(
             status_code=503,
             detail=(
-                "AI Agent is not available: GOOGLE_API_KEY is not configured. "
-                "Set the GOOGLE_API_KEY environment variable with a Google AI Studio API key."
+                "AI Agent is not available: API key is not configured. "
+                "Set GOOGLE_API_KEY or OPENROUTER_API_KEY in your .env file."
             ),
         )
 

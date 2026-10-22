@@ -124,25 +124,53 @@ def _safe_parse_json(text: str) -> Optional[dict]:
     return None
 
 
-def _get_api_key() -> Optional[str]:
-    """Retrieve Google API key from environment."""
-    return os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+def _get_api_key() -> tuple[Optional[str], str]:
+    """
+    Retrieve API key and provider type from environment.
+    Returns (api_key, provider) where provider is 'openrouter' or 'google'.
+    """
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+    if openrouter_key:
+        return openrouter_key, "openrouter"
+
+    google_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if google_key:
+        if google_key.startswith("sk-or-"):
+            return google_key, "openrouter"
+        return google_key, "google"
+
+    return None, "none"
 
 
 def _get_llm():
-    """Create a ChatGoogleGenerativeAI instance from env vars."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
-    api_key = _get_api_key()
+    """Create a chat model instance (supporting OpenRouter or Google AI Studio)."""
+    api_key, provider = _get_api_key()
     if not api_key:
         raise EnvironmentError(
-            "GOOGLE_API_KEY environment variable is not set. "
-            "Get a free API key from https://aistudio.google.com/ "
-            "and set it in your .env file."
+            "GOOGLE_API_KEY or OPENROUTER_API_KEY environment variable is not set. "
+            "Set your API key in your .env file."
         )
 
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+    if provider == "openrouter":
+        from langchain_openai import ChatOpenAI
 
+        model_name = (
+            os.environ.get("OPENROUTER_MODEL")
+            or os.environ.get("GEMINI_MODEL")
+            or "google/gemini-2.5-flash"
+        )
+        return ChatOpenAI(
+            model=model_name,
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+            temperature=0.2,
+            timeout=45,
+            max_retries=2,
+        )
+
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     return ChatGoogleGenerativeAI(
         model=model_name,
         google_api_key=api_key,

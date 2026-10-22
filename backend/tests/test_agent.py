@@ -151,9 +151,10 @@ def test_agent_analyze_success_mocked(client, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_agent_analyze_missing_key(client, monkeypatch):
-    """Verify endpoint returns 503 when GOOGLE_API_KEY is not configured."""
+    """Verify endpoint returns 503 when no API key is configured."""
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     response = client.post(
         "/api/agent/analyze",
@@ -164,7 +165,7 @@ def test_agent_analyze_missing_key(client, monkeypatch):
     )
 
     assert response.status_code == 503
-    assert "GOOGLE_API_KEY" in response.json()["detail"]
+    assert "API key is not configured" in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
@@ -279,3 +280,29 @@ def test_existing_endpoints_intact(client):
     assert "missing_skills" in res_data
     assert "section_scores" in res_data
     assert "feedback" in res_data
+
+
+# ---------------------------------------------------------------------------
+# Test 7: Verify OpenRouter Provider Resolution
+# ---------------------------------------------------------------------------
+
+def test_openrouter_provider_resolution(monkeypatch):
+    """Verify OpenRouter key auto-detection and ChatOpenAI initialization."""
+    from agent.graph import _get_api_key, _get_llm
+    from langchain_openai import ChatOpenAI
+
+    # Case A: OPENROUTER_API_KEY explicitly set
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-v1-custom-test-key")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    key, provider = _get_api_key()
+    assert provider == "openrouter"
+    llm = _get_llm()
+    assert isinstance(llm, ChatOpenAI)
+
+    # Case B: GOOGLE_API_KEY set with OpenRouter sk-or- prefix
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "sk-or-v1-another-test-key")
+    key, provider = _get_api_key()
+    assert provider == "openrouter"
+    llm2 = _get_llm()
+    assert isinstance(llm2, ChatOpenAI)

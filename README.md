@@ -112,6 +112,12 @@ backend/
   agent/
     graph.py           StateGraph definition and node functions
     router.py          FastAPI router for /api/agent/analyze
+  rag/
+    loaders.py         File loading (txt, md, pdf) and chunking
+    store.py           FAISS index with save/load
+    qa.py              Ingest, retrieval and answers with citations
+    router.py          FastAPI router for /api/rag/ask
+    sample_docs/       Example resume and two JDs to try it on
 frontend/
   src/
     App.jsx            Main layout and tab orchestration
@@ -157,6 +163,49 @@ The frontend will run at:
 http://127.0.0.1:5173
 ```
 
+## Ask Questions Over Your Resume and JDs (RAG)
+
+A small retrieval setup in `backend/rag/`. You index your resume and some job descriptions, then ask things like "which of my projects match this JD". It splits the files into overlapping chunks, embeds them with the same `all-MiniLM-L6-v2` model the analyzer uses, and keeps them in a local FAISS index.
+
+If `OPENROUTER_API_KEY` is set, the top chunks are sent to a GPT model on OpenRouter (through the `openai` client) and you get a written answer with `[file #chunk]` citations. Without a key it still works offline and just prints the closest passages with their source and score.
+
+Setup (from `backend/`, same venv as the backend):
+
+```bash
+pip install -r requirements.txt
+```
+
+Env vars (put them in `.env`, see `.env.example`):
+
+- `OPENROUTER_API_KEY`: optional. Leave it unset for the offline mode.
+- `RAG_MODEL`: OpenRouter model id, default `openai/gpt-4o-mini`.
+- `RAG_BASE_URL`: default `https://openrouter.ai/api/v1`.
+- `RAG_INDEX_DIR`: where the index is saved, default `backend/rag_index/` (gitignored).
+- `RAG_EMBED_MODEL`: embedding model, default `all-MiniLM-L6-v2`.
+
+Index files or folders (`.txt`, `.md`, `.pdf`), then ask:
+
+```bash
+cd backend
+python -m rag ingest rag/sample_docs
+python -m rag ingest path/to/resume.pdf path/to/jds/
+python -m rag ask "Which of my projects match the backend developer requirements?"
+python -m rag ask "What skills am I missing for the data analyst role?" -k 6
+```
+
+Running `ingest` again rebuilds the index from the paths you give it. `--chunk-size` and `--overlap` can be changed on ingest (defaults 500 and 100 characters).
+
+With the backend running there is also `POST /api/rag/ask` with `{"question": "...", "k": 4}`. It reads the index built by `ingest`.
+
+Tests (they use a fake embedder, so no model download or API key is needed):
+
+```bash
+cd backend
+pytest tests/test_rag.py
+```
+
+One test runs the real embedding model on the sample docs and is skipped if the model is not in the local cache yet.
+
 ## Production Build
 
 ```bash
@@ -188,6 +237,12 @@ Run the backend agent test suite (with LLM mocked and edge cases tested):
 
 ```bash
 pytest backend/tests/test_agent.py
+```
+
+Run the RAG tests:
+
+```bash
+pytest backend/tests/test_rag.py
 ```
 
 Run the frontend production build:

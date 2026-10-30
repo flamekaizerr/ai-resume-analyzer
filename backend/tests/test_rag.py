@@ -13,7 +13,7 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 from rag import qa
-from rag.loaders import Chunk, chunk_text, load_documents
+from rag.loaders import Chunk, chunk_documents, chunk_text, load_documents, read_bytes
 from rag.store import FaissStore
 
 SAMPLE_DIR = Path(backend_dir) / "rag" / "sample_docs"
@@ -181,32 +181,6 @@ def test_real_model_on_sample_docs(tmp_path, monkeypatch):
     assert results[0].chunk.source == "jd_data_analyst.txt"
 
 
-def test_ask_route(docs, tmp_path, monkeypatch):
-    # call the route function directly, TestClient breaks with the pinned starlette
-    from fastapi import HTTPException
-
-    import rag.embeddings
-    from rag.router import AskRequest, ask
-
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.setenv("RAG_INDEX_DIR", str(tmp_path / "idx"))
-    monkeypatch.setattr(rag.embeddings, "get_embedder", lambda: FakeEmbedder())
-
-    # no index yet
-    with pytest.raises(HTTPException) as err:
-        ask(AskRequest(question="python"))
-    assert err.value.status_code == 404
-
-    qa.ingest([str(docs)], FakeEmbedder(), folder=tmp_path / "idx")
-    body = ask(AskRequest(question="python docker", k=2))
-    assert body["mode"] == "extractive"
-    assert body["sources"][0]["source"] == "python.txt"
-
-    with pytest.raises(HTTPException) as err:
-        ask(AskRequest(question="  "))
-    assert err.value.status_code == 400
-
-
 def test_model_answer_uses_openrouter(monkeypatch):
     import openai
 
@@ -236,3 +210,155 @@ def test_model_answer_uses_openrouter(monkeypatch):
     assert seen["base_url"] == "https://openrouter.ai/api/v1"
     assert seen["api_key"] == "test-key"
     assert seen["model"] == "openai/gpt-4o-mini"
+
+
+def test_load_docx(tmp_path):
+    docx = pytest.importorskip("docx")
+    d = docx.Document()
+    d.add_paragraph("Built a FastAPI service with PostgreSQL.")
+    table = d.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text = "Skills"
+    table.rows[0].cells[1].text = "Docker Kubernetes"
+    path = tmp_path / "resume.docx"
+    d.save(str(path))
+
+    chunks = load_documents([str(tmp_path)])
+    assert [c.source for c in chunks] == ["resume.docx"]
+    assert "FastAPI" in chunks[0].text
+    assert "Kubernetes" in chunks[0].text
+
+
+def test_read_bytes_unsupported():
+    with pytest.raises(ValueError):
+        read_bytes("notes.csv", b"a,b")
+
+
+def test_chunk_documents_names():
+    chunks = chunk_documents([("pasted_resume", "python dev"), ("pasted_jd", "needs python")])
+    assert [(c.source, c.chunk_id) for c in chunks] == [("pasted_resume", 0), ("pasted_jd", 0)]
+
+
+# route tests, using a small app with only the rag router
+
+def _make_pdf(text):
+    # tiny one page pdf with a text line, written by hand so we don't need another lib
+    stream = f"BT /F1 12 Tf 20 100 Td ({text}) Tj ET".encode()
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for n, body in enumerate(objs, start=1):
+        offsets.append(len(out))
+        out += f"{n} 0 obj\n".encode() + body + b"\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
+    for off in offsets:
+        out += f"{off:010d} 00000 n \n".encode()
+    out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode()
+    return out
+
+
+def _make_docx(text):
+    import io
+
+    import docx
+
+    d = docx.Document()
+    d.add_paragraph(text)
+    buf = io.BytesIO()
+    d.save(buf)
+    return buf.getvalue()
+
+
+@pytest.fixture
+def rag_client(tmp_path, monkeypatch):
+    import httpx
+
+    # same starlette/httpx workaround as test_agent.py
+    orig = httpx.Client.__init__
+
+    def patched(self, *args, **kwargs):
+        kwargs.pop("app", None)
+        return orig(self, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.Client, "__init__", patched)
+
+    from fastapi import FastAPI
+    from starlette.testclient import TestClient
+
+    import rag.embeddings
+    import rag.router as rag_router
+
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("RAG_INDEX_DIR", str(tmp_path / "idx"))
+    monkeypatch.setattr(rag.embeddings, "get_embedder", lambda: FakeEmbedder())
+    monkeypatch.setattr(rag_router, "_sample_store", None)
+
+    app = FastAPI()
+    app.include_router(rag_router.router, prefix="/api")
+    return TestClient(app)
+
+
+def test_ask_route_with_pasted_text(rag_client):
+    resp = rag_client.post("/api/rag/ask", data={
+        "question": "kubernetes experience",
+        "resume_text": "Worked on Kubernetes clusters and Helm charts.",
+        "jd_text": "We need someone who knows accounting and payroll.",
+        "k": "2",
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["index"] == "request"
+    assert body["mode"] == "extractive"
+    assert body["sources"][0]["source"] == "pasted_resume"
+    assert "[pasted_resume #0]" in body["answer"]
+
+
+@pytest.mark.parametrize("name,maker", [
+    ("resume.txt", lambda t: t.encode()),
+    ("resume.md", lambda t: ("# Resume\n" + t).encode()),
+    ("resume.pdf", _make_pdf),
+    ("resume.docx", _make_docx),
+])
+def test_ask_route_with_upload(rag_client, name, maker):
+    if name.endswith(".docx"):
+        pytest.importorskip("docx")
+    data = maker("Built Terraform modules for AWS networking")
+    resp = rag_client.post(
+        "/api/rag/ask",
+        data={"question": "terraform aws", "jd_text": "Cooking and baking skills wanted."},
+        files=[("files", (name, data, "application/octet-stream"))],
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["sources"][0]["source"] == name
+    assert "Terraform" in body["sources"][0]["text"]
+
+
+def test_ask_route_rejects_bad_files(rag_client):
+    resp = rag_client.post("/api/rag/ask", data={"question": "x"},
+                           files=[("files", ("data.csv", b"a,b", "text/csv"))])
+    assert resp.status_code == 400
+    resp = rag_client.post("/api/rag/ask", data={"question": "x"},
+                           files=[("files", ("broken.pdf", b"not a pdf", "application/pdf"))])
+    assert resp.status_code == 400
+
+
+def test_ask_route_empty_question(rag_client):
+    assert rag_client.post("/api/rag/ask", data={"question": "  "}).status_code == 400
+
+
+def test_ask_route_falls_back_to_samples_then_saved(rag_client, docs, tmp_path):
+    body = rag_client.post("/api/rag/ask", data={"question": "Power BI dashboards"}).json()
+    assert body["index"] == "sample"
+    assert body["sources"]
+
+    qa.ingest([str(docs)], FakeEmbedder(), folder=tmp_path / "idx")
+    body = rag_client.post("/api/rag/ask", data={"question": "guitar"}).json()
+    assert body["index"] == "saved"
+    assert body["sources"][0]["source"] == "music.txt"

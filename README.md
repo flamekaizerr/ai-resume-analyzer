@@ -89,6 +89,7 @@ The workflow is compiled as a LangGraph `StateGraph` with a linear edge sequence
 
 - **Route**: `POST /api/agent/analyze` (also aliased at `POST /agent/analyze`)
 - **Payload**: `{"resume_text": "...", "jd_text": "..."}`
+  - Or multipart form data with `resume_file` (.pdf, .txt, .md or .docx) and `jd_text`, so an uploaded resume works without pasting it.
 - **Required Environment Variables**:
   - `GOOGLE_API_KEY`: API key from Google AI Studio.
   - `GEMINI_MODEL`: Model identifier (defaults to `gemini-3.8-flash`).
@@ -206,7 +207,7 @@ It calls `POST /rag/ask` (also at `/api/rag/ask`) with multipart form data:
 - `resume_text`, `jd_text` (optional pasted text)
 - `files` (optional, repeat for more than one file)
 
-If you send text or files, a temporary index is built in memory just for that request and nothing is saved. If you send nothing, it uses the index from `python -m rag ingest`, or the sample docs if there is no saved index.
+If you send text or files, a temporary index is built in memory just for that request and nothing is saved. If the question mentions a JD but none of the documents is one (pasted JD text, or a file with "jd" or "job" in its name), the response has a `warning` telling you to add it. If you send nothing, it uses the index from `python -m rag ingest`, or the sample docs if there is no saved index.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/rag/ask \

@@ -11,6 +11,7 @@ Covers:
 7. Verification of existing endpoints (/analyze, /history, /stats)
 """
 
+import io
 import json
 import os
 import sys
@@ -35,6 +36,37 @@ if backend_dir not in sys.path:
 
 from main import app
 from models import ml_models
+
+
+def _make_pdf(text):
+    stream = f"BT /F1 12 Tf 20 100 Td ({text}) Tj ET".encode()
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for n, body in enumerate(objs, start=1):
+        offsets.append(len(out))
+        out += f"{n} 0 obj\n".encode() + body + b"\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
+    for off in offsets:
+        out += f"{off:010d} 00000 n \n".encode()
+    return out + f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode()
+
+
+def _make_docx(text):
+    import docx
+
+    document = docx.Document()
+    document.add_paragraph(text)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -280,6 +312,70 @@ def test_existing_endpoints_intact(client):
     assert "missing_skills" in res_data
     assert "section_scores" in res_data
     assert "feedback" in res_data
+
+
+@pytest.mark.parametrize("filename,content", [
+    ("resume.txt", b"Built Python services."),
+    ("resume.md", b"# Resume\nBuilt Python services."),
+    ("resume.pdf", _make_pdf("Built Python services.")),
+    ("resume.docx", _make_docx("Built Python services.")),
+])
+def test_analyze_file_returns_extracted_resume_text(client, monkeypatch, filename, content):
+    import main
+
+    monkeypatch.setattr(main, "compute_similarity", lambda resume, jd: 0.8)
+    monkeypatch.setattr(main, "analyze_gap", lambda resume, jd: {
+        "matched_skills": [], "missing_skills": [], "transferable_skills": [],
+        "resume_skills": [], "jd_skills": [],
+    })
+    monkeypatch.setattr(main, "compute_section_scores", lambda **kwargs: {})
+    monkeypatch.setattr(main, "generate_feedback", lambda missing, similarity: [])
+
+    response = client.post(
+        "/analyze",
+        data={"jd_text": "Python developer"},
+        files={"resume_file": (filename, content, "application/octet-stream")},
+    )
+    assert response.status_code == 200, response.text
+    assert "Built Python services." in response.json()["resume_text"]
+
+
+@pytest.mark.parametrize("filename,content", [
+    ("resume.txt", b"Built Python services."),
+    ("resume.md", b"# Resume\nBuilt Python services."),
+    ("resume.pdf", _make_pdf("Built Python services.")),
+    ("resume.docx", _make_docx("Built Python services.")),
+])
+def test_agent_analyze_file(client, monkeypatch, filename, content):
+    monkeypatch.setenv("GOOGLE_API_KEY", "mock-key")
+    from agent import graph
+
+    seen = {}
+
+    class FakeGraph:
+        def invoke(self, state):
+            seen.update(state)
+            return {}
+
+    monkeypatch.setattr(graph, "get_graph", lambda: FakeGraph())
+    response = client.post(
+        "/api/agent/analyze",
+        data={"jd_text": "Python developer"},
+        files={"resume_file": (filename, content, "application/octet-stream")},
+    )
+    assert response.status_code == 200, response.text
+    assert "Built Python services." in seen["resume_text"]
+    assert seen["jd_text"] == "Python developer"
+
+
+def test_agent_analyze_rejects_bad_file(client, monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "mock-key")
+    response = client.post(
+        "/api/agent/analyze",
+        data={"jd_text": "Python developer"},
+        files={"resume_file": ("resume.csv", b"a,b", "text/csv")},
+    )
+    assert response.status_code == 400
 
 
 # ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ const FeedbackPanel = lazy(() => import('./components/FeedbackPanel'));
 const HistoryTable = lazy(() => import('./components/HistoryTable'));
 const StatsPanel = lazy(() => import('./components/StatsPanel'));
 const AgentPanel = lazy(() => import('./components/AgentPanel'));
+const AskPanel = lazy(() => import('./components/AskPanel'));
 
 const TabFallback = ({ label }) => (
   <div className="glass-panel panel-state">{label}</div>
@@ -20,6 +21,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [enteredResumeText, setEnteredResumeText] = useState('');
   const [enteredJdText, setEnteredJdText] = useState('');
+  const [enteredResumeFile, setEnteredResumeFile] = useState(null);
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -61,13 +63,15 @@ function App() {
     setResult(data);
     if (data.rawResumeText) setEnteredResumeText(data.rawResumeText);
     if (data.rawJdText) setEnteredJdText(data.rawJdText);
+    setEnteredResumeFile(data.rawResumeFile || null);
     setActiveTab('result');
     refreshInsights();
   };
 
-  const handleRunAgentFromUpload = ({ jdText, resumeText }) => {
+  const handleRunAgentFromUpload = ({ jdText, resumeText, resumeFile }) => {
     setEnteredResumeText(resumeText);
     setEnteredJdText(jdText);
+    setEnteredResumeFile(resumeFile);
     if (!result) {
       setResult({
         similarity_score: 0,
@@ -128,6 +132,12 @@ function App() {
         >
           History & Stats
         </button>
+        <button
+          className={`tab-btn ${activeTab === 'ask' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ask')}
+        >
+          Ask Your Resume
+        </button>
       </div>
 
       <main>
@@ -161,6 +171,7 @@ function App() {
               {/* LangGraph Agent Section */}
               <AgentPanel 
                 resumeText={enteredResumeText}
+                resumeFile={enteredResumeFile}
                 jdText={enteredJdText}
                 defaultGaps={result.missing_skills || []}
               />
@@ -174,6 +185,12 @@ function App() {
               <StatsPanel stats={stats} loading={insightsLoading} error={insightsError} />
               <HistoryTable items={history} loading={insightsLoading} error={insightsError} />
             </div>
+          </Suspense>
+        )}
+
+        {activeTab === 'ask' && (
+          <Suspense fallback={<TabFallback label="Loading..." />}>
+            <AskPanel initialResume={enteredResumeText} initialJd={enteredJdText} />
           </Suspense>
         )}
       </main>

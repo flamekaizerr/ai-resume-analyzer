@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import find_dotenv, load_dotenv
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from starlette.datastructures import UploadFile
 
 # Ensure environment is loaded
 load_dotenv(find_dotenv())
@@ -23,6 +24,9 @@ load_dotenv(find_dotenv())
 _backend_dir = str(Path(__file__).resolve().parent.parent)
 if _backend_dir not in sys.path:
     sys.path.insert(0, _backend_dir)
+
+from parser import extract_text_from_upload  # noqa: E402
+from rag.loaders import SUPPORTED_EXTS  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +56,37 @@ class AgentAnalyzeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/analyze", response_model=AgentAnalyzeResponse)
-async def agent_analyze(request: AgentAnalyzeRequest):
+async def agent_analyze(request: Request):
     """Run the LangGraph agent to analyze a resume against a job description."""
 
+    if "multipart/form-data" in request.headers.get("content-type", ""):
+        form = await request.form()
+        resume_text = form.get("resume_text") or ""
+        jd_text = form.get("jd_text") or ""
+        resume_file = form.get("resume_file")
+        if isinstance(resume_file, UploadFile) and resume_file.filename:
+            name = resume_file.filename
+            ext = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ""
+            if ext not in SUPPORTED_EXTS:
+                raise HTTPException(status_code=400, detail="Resume file must be .pdf, .txt, .md or .docx")
+            content = await resume_file.read()
+            if len(content) > 5 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail="Resume file is larger than 5 MB")
+            try:
+                resume_text = extract_text_from_upload(name, content)
+            except Exception:
+                raise HTTPException(status_code=400, detail=f"Could not read {name}")
+        request_data = AgentAnalyzeRequest(resume_text=resume_text, jd_text=jd_text)
+    else:
+        try:
+            request_data = AgentAnalyzeRequest(**(await request.json()))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid agent request")
+
     # 1. Validate empty or whitespace-only inputs (returns 400)
-    if not request.resume_text or not request.resume_text.strip():
+    if not request_data.resume_text or not request_data.resume_text.strip():
         raise HTTPException(status_code=400, detail="resume_text cannot be empty")
-    if not request.jd_text or not request.jd_text.strip():
+    if not request_data.jd_text or not request_data.jd_text.strip():
         raise HTTPException(status_code=400, detail="jd_text cannot be empty")
 
     # 2. Check for API key before running graph (returns 503)
@@ -90,8 +118,8 @@ async def agent_analyze(request: AgentAnalyzeRequest):
     try:
         graph = get_graph()
         result = graph.invoke({
-            "resume_text": request.resume_text.strip(),
-            "jd_text": request.jd_text.strip(),
+            "resume_text": request_data.resume_text.strip(),
+            "jd_text": request_data.jd_text.strip(),
         })
 
         return AgentAnalyzeResponse(

@@ -1,0 +1,16 @@
+Job Title: Data Analyst
+
+About the role
+Join our analytics team to turn sales data into reports and insights for business teams.
+
+Requirements
+- Strong SQL skills
+- Python with pandas for data cleaning
+- Experience building dashboards in Power BI or Tableau
+- Basic statistics and A/B testing
+- Good communication with non technical stakeholders
+
+Responsibilities
+- Build weekly sales dashboards
+- Clean and join data from multiple sources
+- Present findings to managers

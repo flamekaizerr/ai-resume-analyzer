@@ -1,0 +1,17 @@
+Job Title: Backend Developer (Python)
+
+About the role
+We are looking for a backend developer to build and maintain APIs for our ordering platform.
+
+Requirements
+- 1 to 3 years of experience with Python
+- Hands on experience with FastAPI or Django
+- Good knowledge of SQL and PostgreSQL
+- Experience writing unit tests with pytest
+- Familiar with Docker and CI pipelines
+- Nice to have: Redis, message queues, AWS
+
+Responsibilities
+- Design and build REST APIs
+- Write tests and review code
+- Work with the frontend team on API contracts

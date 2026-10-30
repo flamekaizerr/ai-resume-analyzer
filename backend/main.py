@@ -11,7 +11,7 @@ load_dotenv(find_dotenv())
 from database import get_db, AnalysisRecord
 from schemas import AnalyzeRequest, AnalysisResponse, SectionScores
 from models import ml_models
-from parser import extract_text_from_pdf_bytes, segment_resume
+from parser import extract_text_from_upload, segment_resume
 from analyzer import compute_similarity, analyze_gap, compute_section_scores
 from feedback import generate_feedback
 
@@ -42,6 +42,15 @@ except Exception as _agent_err:
     import logging
     logging.getLogger(__name__).warning("Agent router could not be loaded: %s", _agent_err)
 
+# Question answering over ingested resume/JD files (see rag/)
+try:
+    from rag.router import router as rag_router
+    app.include_router(rag_router, prefix="/api")
+    app.include_router(rag_router, prefix="", include_in_schema=False)
+except Exception as _rag_err:
+    import logging
+    logging.getLogger(__name__).warning("RAG router could not be loaded: %s", _rag_err)
+
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_documents(
     jd_text: str = Form(...),
@@ -57,10 +66,7 @@ async def analyze_documents(
     if resume_file:
         try:
             content = await resume_file.read()
-            if resume_file.filename and resume_file.filename.lower().endswith('.pdf'):
-                extracted_resume_text = extract_text_from_pdf_bytes(content)
-            else:
-                extracted_resume_text = content.decode('utf-8')
+            extracted_resume_text = extract_text_from_upload(resume_file.filename or "resume.txt", content)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
             
@@ -92,7 +98,8 @@ async def analyze_documents(
             missing_skills=gap_data["missing_skills"],
             transferable_skills=gap_data["transferable_skills"],
             section_scores=section_scores,
-            feedback=feedback_bullets
+            feedback=feedback_bullets,
+            resume_text=extracted_resume_text,
         )
         
         # Save to DB

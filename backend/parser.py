@@ -8,6 +8,14 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
         text = extract_text(pdf_file)
     return text
 
+def extract_text_from_upload(filename: str, content: bytes) -> str:
+    """PDF goes through pdfminer like before, txt/md/docx use the rag reader."""
+    from rag.loaders import read_bytes
+
+    if filename.lower().endswith(".pdf"):
+        return extract_text_from_pdf_bytes(content)
+    return read_bytes(filename, content)
+
 def segment_resume(text: str) -> dict:
     """Segments resume text into predefined sections."""
     sections = {

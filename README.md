@@ -89,6 +89,7 @@ The workflow is compiled as a LangGraph `StateGraph` with a linear edge sequence
 
 - **Route**: `POST /api/agent/analyze` (also aliased at `POST /agent/analyze`)
 - **Payload**: `{"resume_text": "...", "jd_text": "..."}`
+  - Or multipart form data with `resume_file` (.pdf, .txt, .md or .docx) and `jd_text`, so an uploaded resume works without pasting it.
 - **Required Environment Variables**:
   - `GOOGLE_API_KEY`: API key from Google AI Studio.
   - `GEMINI_MODEL`: Model identifier (defaults to `gemini-3.8-flash`).
@@ -112,12 +113,19 @@ backend/
   agent/
     graph.py           StateGraph definition and node functions
     router.py          FastAPI router for /api/agent/analyze
+  rag/
+    loaders.py         File loading (txt, md, pdf, docx) and chunking
+    store.py           FAISS index with save/load
+    qa.py              Ingest, retrieval and answers with citations
+    router.py          FastAPI router for /rag/ask
+    sample_docs/       Example resume and two JDs to try it on
 frontend/
   src/
     App.jsx            Main layout and tab orchestration
     api.js             Axios client with VITE_API_BASE_URL resolution
     components/
       AgentPanel.jsx   AI Agent suggestions and rewrite cards
+      AskPanel.jsx     Ask Your Resume tab (rag questions)
       UploadPanel.jsx  Resume upload and input panel
       ScoreGauge.jsx   Circular fit gauge
       RadarChart.jsx   6-dimension section chart
@@ -157,6 +165,66 @@ The frontend will run at:
 http://127.0.0.1:5173
 ```
 
+## Ask Questions Over Your Resume and JDs (RAG)
+
+A small retrieval setup in `backend/rag/`. You index your resume and some job descriptions, then ask things like "which of my projects match this JD". It splits the files into overlapping chunks, embeds them with the same `all-MiniLM-L6-v2` model the analyzer uses, and keeps them in a local FAISS index.
+
+If `OPENROUTER_API_KEY` is set, the top chunks are sent to a GPT model on OpenRouter (through the `openai` client) and you get a written answer with `[file #chunk]` citations. Without a key it still works offline and just prints the closest passages with their source and score.
+
+Setup (from `backend/`, same venv as the backend):
+
+```bash
+pip install -r requirements.txt
+```
+
+Env vars (put them in `.env`, see `.env.example`):
+
+- `OPENROUTER_API_KEY`: optional. Leave it unset for the offline mode.
+- `RAG_MODEL`: OpenRouter model id, default `openai/gpt-4o-mini`.
+- `RAG_BASE_URL`: default `https://openrouter.ai/api/v1`.
+- `RAG_INDEX_DIR`: where the index is saved, default `backend/rag_index/` (gitignored).
+- `RAG_EMBED_MODEL`: embedding model, default `all-MiniLM-L6-v2`.
+
+Index files or folders (`.txt`, `.md`, `.pdf`, `.docx`), then ask:
+
+```bash
+cd backend
+python -m rag ingest rag/sample_docs
+python -m rag ingest path/to/resume.pdf path/to/jds/
+python -m rag ask "Which of my projects match the backend developer requirements?"
+python -m rag ask "What skills am I missing for the data analyst role?" -k 6
+```
+
+Running `ingest` again rebuilds the index from the paths you give it. `--chunk-size` and `--overlap` can be changed on ingest (defaults 500 and 100 characters).
+
+### In the app
+
+The frontend has an "Ask Your Resume" tab. Paste resume and JD text or upload up to 5 files (`.txt`, `.md`, `.pdf`, `.docx`), type a question and it shows the answer with its sources. Without a key on the server it says so and shows the top passages.
+
+It calls `POST /rag/ask` (also at `/api/rag/ask`) with multipart form data:
+
+- `question` (required), `k` (optional, default 4)
+- `resume_text`, `jd_text` (optional pasted text)
+- `files` (optional, repeat for more than one file)
+
+If you send text or files, a temporary index is built in memory just for that request and nothing is saved. If the question mentions a JD but none of the documents is one (pasted JD text, or a file with "jd" or "job" in its name), the response has a `warning` telling you to add it. If you send nothing, it uses the index from `python -m rag ingest`, or the sample docs if there is no saved index.
+
+```bash
+curl -X POST http://127.0.0.1:8000/rag/ask \
+  -F "question=Which of my projects match this JD?" \
+  -F "jd_text=Needs Python, FastAPI and Docker" \
+  -F "files=@resume.pdf"
+```
+
+Tests (they use a fake embedder, so no model download or API key is needed):
+
+```bash
+cd backend
+pytest tests/test_rag.py
+```
+
+One test runs the real embedding model on the sample docs and is skipped if the model is not in the local cache yet.
+
 ## Production Build
 
 ```bash
@@ -188,6 +256,12 @@ Run the backend agent test suite (with LLM mocked and edge cases tested):
 
 ```bash
 pytest backend/tests/test_agent.py
+```
+
+Run the RAG tests:
+
+```bash
+pytest backend/tests/test_rag.py
 ```
 
 Run the frontend production build:

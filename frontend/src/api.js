@@ -18,6 +18,11 @@ export const analyzeWithAgent = async (payload) => {
   return response.data;
 };
 
+export const askResume = async (formData) => {
+  const response = await api.post('/rag/ask', formData);
+  return response.data;
+};
+
 export const getHistory = async () => {
   const response = await api.get('/history');
   return response.data;

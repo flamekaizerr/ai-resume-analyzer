@@ -42,6 +42,14 @@ except Exception as _agent_err:
     import logging
     logging.getLogger(__name__).warning("Agent router could not be loaded: %s", _agent_err)
 
+# Question answering over ingested resume/JD files (see rag/)
+try:
+    from rag.router import router as rag_router
+    app.include_router(rag_router, prefix="/api")
+except Exception as _rag_err:
+    import logging
+    logging.getLogger(__name__).warning("RAG router could not be loaded: %s", _rag_err)
+
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_documents(
     jd_text: str = Form(...),

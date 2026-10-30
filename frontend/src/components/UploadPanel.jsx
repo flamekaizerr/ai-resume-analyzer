@@ -35,7 +35,8 @@ const UploadPanel = ({ onAnalysisComplete, onRunAgent, initialJd = '', initialRe
       const data = await analyzeResume(formData);
       onAnalysisComplete({
         ...data,
-        rawResumeText: resumeText,
+        rawResumeText: data.resume_text || resumeText,
+        rawResumeFile: file,
         rawJdText: jdText
       });
     } catch (err) {
@@ -52,12 +53,12 @@ const UploadPanel = ({ onAnalysisComplete, onRunAgent, initialJd = '', initialRe
       setError("Job Description is required for AI Agent Suggestions");
       return;
     }
-    if (!resumeText || !resumeText.trim()) {
-      setError("Please paste resume text into 'Or Paste Resume Text' to run the AI Agent");
+    if ((!resumeText || !resumeText.trim()) && !file) {
+      setError('Please upload a resume file or paste resume text to run the AI Agent');
       return;
     }
     if (onRunAgent) {
-      onRunAgent({ jdText, resumeText });
+      onRunAgent({ jdText, resumeText, resumeFile: file });
     }
   };
 
@@ -75,10 +76,10 @@ const UploadPanel = ({ onAnalysisComplete, onRunAgent, initialJd = '', initialRe
         </div>
         
         <div className="form-group">
-          <label>Resume (PDF)</label>
+          <label>Resume File</label>
           <input 
             type="file" 
-            accept=".pdf"
+            accept=".pdf,.txt,.md,.docx"
             onChange={(e) => setFile(e.target.files[0])}
           />
         </div>
@@ -86,7 +87,7 @@ const UploadPanel = ({ onAnalysisComplete, onRunAgent, initialJd = '', initialRe
         <div className="form-group">
           <label>Or Paste Resume Text</label>
           <textarea 
-            placeholder="Paste resume text if you don't have a PDF..."
+            placeholder="Paste resume text if you don't have a file..."
             value={resumeText}
             onChange={(e) => setResumeText(e.target.value)}
           />

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Bot, Sparkles, RefreshCw, AlertCircle, CheckCircle2, Copy, Check } from 'lucide-react';
 import { analyzeWithAgent } from '../api';
 
-const AgentPanel = ({ resumeText, jdText, defaultGaps = [] }) => {
+const AgentPanel = ({ resumeText, resumeFile, jdText, defaultGaps = [] }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isKeyMissing, setIsKeyMissing] = useState(false);
@@ -10,8 +10,8 @@ const AgentPanel = ({ resumeText, jdText, defaultGaps = [] }) => {
   const [copiedIndex, setCopiedIndex] = useState(null);
 
   const runAgent = async () => {
-    if (!resumeText || !resumeText.trim()) {
-      setError("Please provide resume text to run the AI Agent. If you uploaded a PDF, paste the text into 'Or Paste Resume Text'.");
+    if ((!resumeText || !resumeText.trim()) && !resumeFile) {
+      setError('Please upload a resume file or paste resume text to run the AI Agent.');
       return;
     }
     if (!jdText || !jdText.trim()) {
@@ -24,10 +24,21 @@ const AgentPanel = ({ resumeText, jdText, defaultGaps = [] }) => {
     setIsKeyMissing(false);
 
     try {
-      const data = await analyzeWithAgent({
-        resume_text: resumeText.trim(),
-        jd_text: jdText.trim(),
-      });
+      let payload;
+      const fileName = resumeFile?.name?.toLowerCase() || '';
+      if (resumeText && resumeText.trim()) {
+        payload = { resume_text: resumeText.trim(), jd_text: jdText.trim() };
+      } else if (fileName.endsWith('.txt') || fileName.endsWith('.md')) {
+        // plain text files can be read right here
+        const text = await resumeFile.text();
+        payload = { resume_text: text.trim(), jd_text: jdText.trim() };
+      } else {
+        // pdf and docx get parsed on the server
+        payload = new FormData();
+        payload.append('resume_file', resumeFile);
+        payload.append('jd_text', jdText.trim());
+      }
+      const data = await analyzeWithAgent(payload);
       setAgentData(data);
     } catch (err) {
       console.error("Agent error:", err);
@@ -37,12 +48,14 @@ const AgentPanel = ({ resumeText, jdText, defaultGaps = [] }) => {
       if (status === 503 && detail.toLowerCase().includes("google_api_key")) {
         setIsKeyMissing(true);
         setError("AI Agent requires a Google AI Studio API key. Set GOOGLE_API_KEY in your backend environment (.env) to enable LangGraph suggestions.");
+      } else if (status === 422 && !resumeText?.trim() && resumeFile) {
+        setError("This backend can't read uploaded resume files for the agent yet. Paste the resume text instead, or run the latest backend.");
       } else if (status === 429) {
         setError("Google AI Studio rate limit reached. Please wait a minute and retry.");
       } else if (status === 504) {
         setError("Agent analysis timed out. Try using a more concise resume or JD excerpt.");
       } else {
-        setError(detail);
+        setError(typeof detail === 'string' ? detail : 'Agent analysis failed. Please try again.');
       }
     } finally {
       setLoading(false);

@@ -21,6 +21,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [enteredResumeText, setEnteredResumeText] = useState('');
   const [enteredJdText, setEnteredJdText] = useState('');
+  const [enteredResumeFile, setEnteredResumeFile] = useState(null);
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -62,13 +63,15 @@ function App() {
     setResult(data);
     if (data.rawResumeText) setEnteredResumeText(data.rawResumeText);
     if (data.rawJdText) setEnteredJdText(data.rawJdText);
+    setEnteredResumeFile(data.rawResumeFile || null);
     setActiveTab('result');
     refreshInsights();
   };
 
-  const handleRunAgentFromUpload = ({ jdText, resumeText }) => {
+  const handleRunAgentFromUpload = ({ jdText, resumeText, resumeFile }) => {
     setEnteredResumeText(resumeText);
     setEnteredJdText(jdText);
+    setEnteredResumeFile(resumeFile);
     if (!result) {
       setResult({
         similarity_score: 0,
@@ -168,6 +171,7 @@ function App() {
               {/* LangGraph Agent Section */}
               <AgentPanel 
                 resumeText={enteredResumeText}
+                resumeFile={enteredResumeFile}
                 jdText={enteredJdText}
                 defaultGaps={result.missing_skills || []}
               />

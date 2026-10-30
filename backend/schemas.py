@@ -20,6 +20,7 @@ class AnalysisResponse(BaseModel):
     transferable_skills: List[str]
     section_scores: SectionScores
     feedback: List[str]
+    resume_text: Optional[str] = None
 
 class AnalyzeRequest(BaseModel):
     resume_text: Optional[str] = None

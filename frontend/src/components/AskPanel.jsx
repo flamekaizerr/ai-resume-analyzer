@@ -35,7 +35,11 @@ const AskPanel = ({ initialResume = '', initialJd = '' }) => {
     } catch (err) {
       console.error(err);
       if (err?.response?.status === 404) {
-        setError('The backend does not have the /rag/ask route yet. Make sure it is running the latest backend code.');
+        setError('Ask Your Resume is not available on this backend yet (the /rag/ask route returned 404). The hosted backend gets it once the new backend code is deployed. Locally, restart the backend from this branch.');
+        return;
+      }
+      if (!err?.response) {
+        setError('Could not reach the backend. Check that it is running and try again.');
         return;
       }
       const message = err?.response?.data?.detail || err?.message || 'Request failed. Please try again.';
@@ -106,6 +110,7 @@ const AskPanel = ({ initialResume = '', initialJd = '' }) => {
           {result.index === 'sample' && (
             <p className="ask-note">No documents were given, so this searched the built-in sample resume and JDs.</p>
           )}
+          {result.warning && <div className="ask-banner" style={{ marginBottom: '16px' }}>{result.warning}</div>}
 
           {isExtractive ? (
             <div className="ask-banner">
@@ -122,11 +127,11 @@ const AskPanel = ({ initialResume = '', initialJd = '' }) => {
           )}
 
           <h4 className="ask-heading" style={{ marginTop: '20px' }}>
-            <FileText size={16} /> {isExtractive ? 'Top Passages' : 'Sources'} ({result.sources.length})
+            <FileText size={16} /> {isExtractive ? 'Top Passages' : 'Sources'} ({(result.sources || []).length})
           </h4>
-          {result.sources.length === 0 && <p className="ask-note">Nothing relevant found.</p>}
+          {(result.sources || []).length === 0 && <p className="ask-note">Nothing relevant found.</p>}
           <ul className="feedback-list">
-            {result.sources.map((s, i) => (
+            {(result.sources || []).map((s, i) => (
               <li key={`${s.source}-${s.chunk_id}-${i}`}>
                 <div className="ask-source-meta">
                   <span className="chip success" style={{ margin: 0 }}>{s.source} #{s.chunk_id}</span>

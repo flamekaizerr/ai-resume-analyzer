@@ -3,6 +3,7 @@ is set, otherwise we just return the best matching passages."""
 
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Iterable, List, Optional
 
@@ -50,6 +51,22 @@ def retrieve(store: FaissStore, question: str, embedder, k: int = 4) -> List[Sea
 
 def cite(r: SearchResult) -> str:
     return f"[{r.chunk.source} #{r.chunk.chunk_id}]"
+
+
+def jd_warning(question: str, document_names: Iterable[str]) -> Optional[str]:
+    """Plain warning when the question is about a JD but none of the given docs is one.
+
+    Pasted JD text is named pasted_jd, so it counts. Files count if their name
+    has "jd" or "job" in it.
+    """
+    mentions_jd = re.search(r"\b(?:jds?|job descriptions?|job posts?|job postings?)\b", question, re.IGNORECASE)
+    has_jd = any(re.search(r"jd|job", name, re.IGNORECASE) for name in document_names)
+    if mentions_jd and not has_jd:
+        return (
+            "Your question mentions a job description, but none of the documents looks like one. "
+            "Add the JD (paste it, or upload a file with \"jd\" or \"job\" in the name) and ask again."
+        )
+    return None
 
 
 def extractive_answer(question: str, results: List[SearchResult]) -> str:

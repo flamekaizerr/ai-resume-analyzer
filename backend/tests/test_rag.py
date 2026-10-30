@@ -317,6 +317,26 @@ def test_ask_route_with_pasted_text(rag_client):
     assert body["mode"] == "extractive"
     assert body["sources"][0]["source"] == "pasted_resume"
     assert "[pasted_resume #0]" in body["answer"]
+    assert body["warning"] is None
+
+
+def test_ask_route_warns_when_jd_is_missing(rag_client):
+    resp = rag_client.post("/api/rag/ask", data={
+        "question": "Which project matches the JD?",
+        "resume_text": "Built Python projects with FastAPI.",
+    })
+    assert resp.status_code == 200
+    assert "Add the JD" in resp.json()["warning"]
+
+
+def test_ask_route_accepts_uploaded_jd_for_warning(rag_client):
+    resp = rag_client.post(
+        "/api/rag/ask",
+        data={"question": "Which project matches the job description?"},
+        files=[("files", ("backend_job.txt", b"Python role requirements", "text/plain"))],
+    )
+    assert resp.status_code == 200
+    assert resp.json()["warning"] is None
 
 
 @pytest.mark.parametrize("name,maker", [
@@ -362,3 +382,19 @@ def test_ask_route_falls_back_to_samples_then_saved(rag_client, docs, tmp_path):
     body = rag_client.post("/api/rag/ask", data={"question": "guitar"}).json()
     assert body["index"] == "saved"
     assert body["sources"][0]["source"] == "music.txt"
+
+
+def test_jd_warning_rule():
+    q = "Which project from my resume matches the JD?"
+    assert qa.jd_warning(q, ["resume.pdf"])
+    assert qa.jd_warning(q, ["pasted_resume"])
+    assert qa.jd_warning(q, ["resume.pdf", "backend_jd.txt"]) is None
+    assert qa.jd_warning(q, ["pasted_resume", "pasted_jd"]) is None
+    assert qa.jd_warning("What JDs fit me?", ["resume.pdf"])
+    assert qa.jd_warning("Which of my projects use Docker?", ["resume.pdf"]) is None
+
+
+def test_no_jd_warning_on_sample_fallback(rag_client):
+    body = rag_client.post("/api/rag/ask", data={"question": "Which project matches the JD?"}).json()
+    assert body["index"] == "sample"
+    assert body["warning"] is None

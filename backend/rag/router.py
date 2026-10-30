@@ -90,4 +90,6 @@ async def ask(request: Request):
 
     result = qa.answer(question, store, embedder, k=k)
     result["index"] = index_used
+    # only check docs the user sent, the saved index and samples already have JDs
+    result["warning"] = qa.jd_warning(question, [name for name, _ in docs]) if docs else None
     return result

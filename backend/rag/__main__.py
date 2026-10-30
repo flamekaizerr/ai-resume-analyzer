@@ -43,6 +43,9 @@ def main(argv=None):
         print(e, file=sys.stderr)
         return 1
     result = qa.answer(args.question, store, embedder, k=args.k)
+    warning = qa.jd_warning(args.question, {chunk.source for chunk in store.chunks})
+    if warning:
+        print(f"Warning: {warning}")
     print(result["answer"])
     if result["mode"] == "model":
         print("\nSources:")

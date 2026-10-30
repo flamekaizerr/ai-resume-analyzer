@@ -10,6 +10,7 @@ const FeedbackPanel = lazy(() => import('./components/FeedbackPanel'));
 const HistoryTable = lazy(() => import('./components/HistoryTable'));
 const StatsPanel = lazy(() => import('./components/StatsPanel'));
 const AgentPanel = lazy(() => import('./components/AgentPanel'));
+const AskPanel = lazy(() => import('./components/AskPanel'));
 
 const TabFallback = ({ label }) => (
   <div className="glass-panel panel-state">{label}</div>
@@ -128,6 +129,12 @@ function App() {
         >
           History & Stats
         </button>
+        <button
+          className={`tab-btn ${activeTab === 'ask' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ask')}
+        >
+          Ask Your Resume
+        </button>
       </div>
 
       <main>
@@ -174,6 +181,12 @@ function App() {
               <StatsPanel stats={stats} loading={insightsLoading} error={insightsError} />
               <HistoryTable items={history} loading={insightsLoading} error={insightsError} />
             </div>
+          </Suspense>
+        )}
+
+        {activeTab === 'ask' && (
+          <Suspense fallback={<TabFallback label="Loading..." />}>
+            <AskPanel initialResume={enteredResumeText} initialJd={enteredJdText} />
           </Suspense>
         )}
       </main>

@@ -44,3 +44,6 @@ Thumbs.db
 send_email.py
 
 ---------------------------
+
+# Local RAG index (built with python -m rag ingest)
+rag_index/

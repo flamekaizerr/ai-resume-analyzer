@@ -1,10 +1,11 @@
 """Loading files and splitting them into chunks."""
 
+import io
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, List
 
-SUPPORTED_EXTS = {".txt", ".md", ".pdf"}
+SUPPORTED_EXTS = {".txt", ".md", ".pdf", ".docx"}
 
 
 @dataclass
@@ -17,14 +18,31 @@ class Chunk:
         return asdict(self)
 
 
-def read_file(path: Path) -> str:
-    if path.suffix.lower() == ".pdf":
+def read_bytes(name: str, data: bytes) -> str:
+    """Turn file contents into plain text based on the file extension."""
+    ext = Path(name).suffix.lower()
+    if ext == ".pdf":
         from pypdf import PdfReader
 
-        reader = PdfReader(str(path))
-        pages = [page.extract_text() or "" for page in reader.pages]
-        return "\n".join(pages)
-    return path.read_text(encoding="utf-8", errors="ignore")
+        reader = PdfReader(io.BytesIO(data))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+    if ext == ".docx":
+        import docx
+
+        doc = docx.Document(io.BytesIO(data))
+        lines = [p.text for p in doc.paragraphs]
+        # resumes often keep skills in tables, so grab those too
+        for table in doc.tables:
+            for row in table.rows:
+                lines.append(" ".join(cell.text for cell in row.cells))
+        return "\n".join(lines)
+    if ext in (".txt", ".md"):
+        return data.decode("utf-8", errors="ignore")
+    raise ValueError(f"Unsupported file type: {name} (use .txt, .md, .pdf or .docx)")
+
+
+def read_file(path: Path) -> str:
+    return read_bytes(path.name, path.read_bytes())
 
 
 def find_files(paths: Iterable[str]) -> List[Path]:
@@ -82,4 +100,13 @@ def load_documents(paths: Iterable[str], chunk_size: int = 500, overlap: int = 1
         text = read_file(f)
         for i, piece in enumerate(chunk_text(text, chunk_size, overlap)):
             chunks.append(Chunk(text=piece, source=f.name, chunk_id=i))
+    return chunks
+
+
+def chunk_documents(docs, chunk_size: int = 500, overlap: int = 100) -> List[Chunk]:
+    """Chunk (name, text) pairs that did not come from disk, like pasted text or uploads."""
+    chunks = []
+    for name, text in docs:
+        for i, piece in enumerate(chunk_text(text, chunk_size, overlap)):
+            chunks.append(Chunk(text=piece, source=name, chunk_id=i))
     return chunks

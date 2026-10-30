@@ -23,6 +23,7 @@ const AgentPanel = ({ resumeText, resumeFile, jdText, defaultGaps = [] }) => {
     setError(null);
     setIsKeyMissing(false);
 
+    let sentFile = false;
     try {
       let payload;
       const fileName = resumeFile?.name?.toLowerCase() || '';
@@ -35,6 +36,7 @@ const AgentPanel = ({ resumeText, resumeFile, jdText, defaultGaps = [] }) => {
       } else {
         // pdf and docx get parsed on the server
         payload = new FormData();
+        sentFile = true;
         payload.append('resume_file', resumeFile);
         payload.append('jd_text', jdText.trim());
       }
@@ -48,8 +50,9 @@ const AgentPanel = ({ resumeText, resumeFile, jdText, defaultGaps = [] }) => {
       if (status === 503 && detail.toLowerCase().includes("google_api_key")) {
         setIsKeyMissing(true);
         setError("AI Agent requires a Google AI Studio API key. Set GOOGLE_API_KEY in your backend environment (.env) to enable LangGraph suggestions.");
-      } else if (status === 422 && !resumeText?.trim() && resumeFile) {
-        setError("This backend can't read uploaded resume files for the agent yet. Paste the resume text instead, or run the latest backend.");
+      } else if (sentFile && (status === 422 || status >= 500)) {
+        // older backends only take JSON here
+        setError("This backend can't read uploaded PDF or DOCX resumes for the agent yet. Paste the resume text instead.");
       } else if (status === 429) {
         setError("Google AI Studio rate limit reached. Please wait a minute and retry.");
       } else if (status === 504) {

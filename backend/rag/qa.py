@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-from .loaders import load_documents
+from .loaders import Chunk, chunk_documents, load_documents
 from .store import FaissStore, SearchResult
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "openai/gpt-4o-mini"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_INDEX_DIR = Path(__file__).resolve().parent.parent / "rag_index"
+SAMPLE_DIR = Path(__file__).resolve().parent / "sample_docs"
 
 
 def index_dir() -> Path:
@@ -23,12 +24,24 @@ def index_dir() -> Path:
 def ingest(paths: Iterable[str], embedder, folder=None, chunk_size=500, overlap=100) -> FaissStore:
     chunks = load_documents(paths, chunk_size=chunk_size, overlap=overlap)
     if not chunks:
-        raise ValueError("No text found in the given paths (supported: .txt, .md, .pdf)")
+        raise ValueError("No text found in the given paths (supported: .txt, .md, .pdf, .docx)")
+    store = build_store(chunks, embedder)
+    store.save(folder or index_dir())
+    return store
+
+
+def build_store(chunks: List[Chunk], embedder) -> FaissStore:
+    """In-memory index, nothing is saved."""
+    if not chunks:
+        raise ValueError("No text to index")
     vectors = embedder.embed([c.text for c in chunks])
     store = FaissStore(vectors.shape[1])
     store.add(chunks, vectors)
-    store.save(folder or index_dir())
     return store
+
+
+def store_from_texts(docs, embedder, chunk_size=500, overlap=100) -> FaissStore:
+    return build_store(chunk_documents(docs, chunk_size, overlap), embedder)
 
 
 def retrieve(store: FaissStore, question: str, embedder, k: int = 4) -> List[SearchResult]:

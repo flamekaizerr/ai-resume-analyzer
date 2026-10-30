@@ -46,6 +46,7 @@ except Exception as _agent_err:
 try:
     from rag.router import router as rag_router
     app.include_router(rag_router, prefix="/api")
+    app.include_router(rag_router, prefix="", include_in_schema=False)
 except Exception as _rag_err:
     import logging
     logging.getLogger(__name__).warning("RAG router could not be loaded: %s", _rag_err)

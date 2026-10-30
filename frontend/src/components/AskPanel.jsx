@@ -34,6 +34,10 @@ const AskPanel = ({ initialResume = '', initialJd = '' }) => {
       setResult(data);
     } catch (err) {
       console.error(err);
+      if (err?.response?.status === 404) {
+        setError('The backend does not have the /rag/ask route yet. Make sure it is running the latest backend code.');
+        return;
+      }
       const message = err?.response?.data?.detail || err?.message || 'Request failed. Please try again.';
       setError(typeof message === 'string' ? message : 'Request failed. Please try again.');
     } finally {

@@ -113,10 +113,10 @@ backend/
     graph.py           StateGraph definition and node functions
     router.py          FastAPI router for /api/agent/analyze
   rag/
-    loaders.py         File loading (txt, md, pdf) and chunking
+    loaders.py         File loading (txt, md, pdf, docx) and chunking
     store.py           FAISS index with save/load
     qa.py              Ingest, retrieval and answers with citations
-    router.py          FastAPI router for /api/rag/ask
+    router.py          FastAPI router for /rag/ask
     sample_docs/       Example resume and two JDs to try it on
 frontend/
   src/
@@ -124,6 +124,7 @@ frontend/
     api.js             Axios client with VITE_API_BASE_URL resolution
     components/
       AgentPanel.jsx   AI Agent suggestions and rewrite cards
+      AskPanel.jsx     Ask Your Resume tab (rag questions)
       UploadPanel.jsx  Resume upload and input panel
       ScoreGauge.jsx   Circular fit gauge
       RadarChart.jsx   6-dimension section chart
@@ -183,7 +184,7 @@ Env vars (put them in `.env`, see `.env.example`):
 - `RAG_INDEX_DIR`: where the index is saved, default `backend/rag_index/` (gitignored).
 - `RAG_EMBED_MODEL`: embedding model, default `all-MiniLM-L6-v2`.
 
-Index files or folders (`.txt`, `.md`, `.pdf`), then ask:
+Index files or folders (`.txt`, `.md`, `.pdf`, `.docx`), then ask:
 
 ```bash
 cd backend
@@ -195,7 +196,24 @@ python -m rag ask "What skills am I missing for the data analyst role?" -k 6
 
 Running `ingest` again rebuilds the index from the paths you give it. `--chunk-size` and `--overlap` can be changed on ingest (defaults 500 and 100 characters).
 
-With the backend running there is also `POST /api/rag/ask` with `{"question": "...", "k": 4}`. It reads the index built by `ingest`.
+### In the app
+
+The frontend has an "Ask Your Resume" tab. Paste resume and JD text or upload up to 5 files (`.txt`, `.md`, `.pdf`, `.docx`), type a question and it shows the answer with its sources. Without a key on the server it says so and shows the top passages.
+
+It calls `POST /rag/ask` (also at `/api/rag/ask`) with multipart form data:
+
+- `question` (required), `k` (optional, default 4)
+- `resume_text`, `jd_text` (optional pasted text)
+- `files` (optional, repeat for more than one file)
+
+If you send text or files, a temporary index is built in memory just for that request and nothing is saved. If you send nothing, it uses the index from `python -m rag ingest`, or the sample docs if there is no saved index.
+
+```bash
+curl -X POST http://127.0.0.1:8000/rag/ask \
+  -F "question=Which of my projects match this JD?" \
+  -F "jd_text=Needs Python, FastAPI and Docker" \
+  -F "files=@resume.pdf"
+```
 
 Tests (they use a fake embedder, so no model download or API key is needed):
 

@@ -19,6 +19,6 @@ FastAPI backend for resume-to-job-description analysis, skill gap detection, sec
 - `GET /stats`
 - `GET /analysis/{analysis_id}`
 - `DELETE /analysis/{analysis_id}`
-- `POST /api/rag/ask` (needs an index from `python -m rag ingest`, see the main README)
+- `POST /rag/ask` (multipart: question plus optional resume_text, jd_text and files, see the main README)
 
 The service listens on port `7860` when deployed as a Hugging Face Docker Space.

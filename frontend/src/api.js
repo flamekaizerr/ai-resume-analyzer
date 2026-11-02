@@ -23,8 +23,8 @@ export const askResume = async (formData) => {
   return response.data;
 };
 
-export const getHistory = async () => {
-  const response = await api.get('/history');
+export const getHistory = async (params) => {
+  const response = await api.get('/history', { params });
   return response.data;
 };
 

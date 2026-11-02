@@ -14,7 +14,7 @@ const formatSkills = (skills) => {
   return skills.slice(0, 3).join(', ');
 };
 
-const HistoryTable = ({ items, loading, error }) => {
+const HistoryTable = ({ items, loading, error, nextCursor, loadingMore, onLoadMore }) => {
   return (
     <div className="glass-panel history-panel">
       <div className="panel-header">
@@ -55,6 +55,12 @@ const HistoryTable = ({ items, loading, error }) => {
             </tbody>
           </table>
         </div>
+      )}
+
+      {!loading && !error && nextCursor && (
+        <button type="button" className="tab-btn" onClick={onLoadMore} disabled={loadingMore} style={{ marginTop: '16px' }}>
+          {loadingMore ? 'Loading...' : 'Load more'}
+        </button>
       )}
     </div>
   );

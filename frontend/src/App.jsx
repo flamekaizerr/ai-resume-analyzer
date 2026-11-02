@@ -23,6 +23,8 @@ function App() {
   const [enteredJdText, setEnteredJdText] = useState('');
   const [enteredResumeFile, setEnteredResumeFile] = useState(null);
   const [history, setHistory] = useState([]);
+  const [historyCursor, setHistoryCursor] = useState(null);
+  const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
   const [stats, setStats] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState(null);
@@ -42,8 +44,15 @@ function App() {
     setInsightsLoading(true);
     setInsightsError(null);
     try {
-      const [historyData, statsData] = await Promise.all([getHistory(), getStats()]);
-      setHistory(historyData);
+      const [historyData, statsData] = await Promise.all([getHistory({ limit: 20 }), getStats()]);
+      // an older backend ignores limit and sends a plain list
+      if (Array.isArray(historyData)) {
+        setHistory(historyData);
+        setHistoryCursor(null);
+      } else {
+        setHistory(historyData.items);
+        setHistoryCursor(historyData.next_cursor);
+      }
       setStats(statsData);
     } catch (err) {
       console.error(err);
@@ -52,6 +61,21 @@ function App() {
       setInsightsLoading(false);
     }
   }, []);
+
+  const loadMoreHistory = useCallback(async () => {
+    if (!historyCursor || loadingMoreHistory) return;
+    setLoadingMoreHistory(true);
+    try {
+      const page = await getHistory({ limit: 20, before: historyCursor });
+      setHistory((items) => [...items, ...page.items]);
+      setHistoryCursor(page.next_cursor);
+    } catch (err) {
+      console.error(err);
+      setInsightsError('Failed to load more history.');
+    } finally {
+      setLoadingMoreHistory(false);
+    }
+  }, [historyCursor, loadingMoreHistory]);
 
   useEffect(() => {
     if (activeTab === 'tracker') {
@@ -183,7 +207,14 @@ function App() {
           <Suspense fallback={<TabFallback label="Loading history and stats..." />}>
             <div className="tracker-layout">
               <StatsPanel stats={stats} loading={insightsLoading} error={insightsError} />
-              <HistoryTable items={history} loading={insightsLoading} error={insightsError} />
+              <HistoryTable
+                items={history}
+                loading={insightsLoading}
+                error={insightsError}
+                nextCursor={historyCursor}
+                loadingMore={loadingMoreHistory}
+                onLoadMore={loadMoreHistory}
+              />
             </div>
           </Suspense>
         )}

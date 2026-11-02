@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import HTTPException
-from sqlalchemy import Integer, func, or_, select, true
+from sqlalchemy import Integer, func, select, true, tuple_
 from sqlalchemy.orm import Session
 
 from database import AnalysisRecord
@@ -63,10 +63,10 @@ def get_history(session: Session, limit=None, before=None, min_score=None):
         if record_id is None:
             statement = statement.where(table.c.timestamp < timestamp)
         else:
-            statement = statement.where(or_(
-                table.c.timestamp < timestamp,
-                (table.c.timestamp == timestamp) & (table.c.id < record_id),
-            ))
+            # row value compare so SQLite can seek in the (timestamp, id) index
+            statement = statement.where(
+                tuple_(table.c.timestamp, table.c.id) < tuple_(timestamp, record_id)
+            )
 
     statement = statement.order_by(table.c.timestamp.desc(), table.c.id.desc())
     if not paginated:
@@ -84,33 +84,58 @@ def get_history(session: Session, limit=None, before=None, min_score=None):
     return {"items": items, "next_cursor": next_cursor}
 
 
-def _top_skills(session: Session, column_name):
+def _first_seen(session: Session, column, skill_value):
+    """Where the old loop first met this skill: newest row, then position in its list."""
     table = AnalysisRecord.__table__
-    ranked = select(
-        table.c.id,
-        table.c.timestamp,
-        table.c[column_name].label("skills"),
-        func.row_number().over(
-            order_by=(table.c.timestamp.desc(), table.c.id.desc())
-        ).label("row_number"),
-    ).subquery("ranked_analyses")
-    skill = func.json_each(ranked.c.skills).table_valued("key", "value").alias("skill")
-    first_seen = func.min(func.printf(
-        "%020d:%020d", ranked.c.row_number, skill.c.key.cast(Integer)
-    ))
-    statement = (
-        select(skill.c.value.label("skill"), func.count().label("count"), first_seen.label("first_seen"))
-        .select_from(ranked.join(skill, true(), isouter=False))
+    item = func.json_each(column).table_valued("key", "value").alias("item")
+    position = item.c.key.cast(Integer)
+    row = session.execute(
+        select(table.c.timestamp, table.c.id, position.label("position"))
+        .select_from(table.join(item, true()))
+        .where(func.json_type(column) == "array", item.c.value == skill_value)
+        .order_by(table.c.timestamp.desc(), table.c.id.desc(), position)
+        .limit(1)
+    ).one()
+    # sorted with reverse=True: newest first (NULL timestamps last like the old DESC sort),
+    # then higher id, then lower list position
+    return (row.timestamp is not None, row.timestamp or datetime.min, row.id, -row.position)
+
+
+def _top_skills(session: Session, column_name, top_n=5):
+    table = AnalysisRecord.__table__
+    column = table.c[column_name]
+    item = func.json_each(column).table_valued("key", "value").alias("item")
+    counts = session.execute(
+        select(item.c.value.label("skill"), func.count().label("count"))
+        .select_from(table.join(item, true()))
         # a None list is stored as JSON null, the old code skipped those rows
-        .where(func.json_type(ranked.c.skills) == "array")
-        .group_by(skill.c.value)
-        .order_by(func.count().desc(), first_seen)
-        .limit(5)
-    )
-    return [
-        {"skill": row.skill, "count": row.count}
-        for row in session.execute(statement)
-    ]
+        .where(func.json_type(column) == "array")
+        .group_by(item.c.value)
+    ).all()
+    if not counts:
+        return []
+
+    # the old code sorted by count and kept first seen order for ties,
+    # so only skills tied at the cutoff need their first position looked up
+    ordered = sorted(counts, key=lambda row: row.count, reverse=True)
+    cutoff = ordered[min(top_n, len(ordered)) - 1].count
+    candidates = [row for row in ordered if row.count >= cutoff]
+    tied_counts = {
+        count for count in {row.count for row in candidates}
+        if sum(1 for row in candidates if row.count == count) > 1
+    }
+    first_seen = {
+        row.skill: _first_seen(session, column, row.skill)
+        for row in candidates if row.count in tied_counts
+    }
+
+    top = []
+    for count in sorted({row.count for row in candidates}, reverse=True):
+        group = [row for row in candidates if row.count == count]
+        if count in tied_counts:
+            group.sort(key=lambda row: first_seen[row.skill], reverse=True)
+        top.extend(group)
+    return [{"skill": row.skill, "count": row.count} for row in top[:top_n]]
 
 
 def get_stats(session: Session):

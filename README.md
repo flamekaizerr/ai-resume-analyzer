@@ -151,6 +151,19 @@ The API will run at:
 http://127.0.0.1:8000
 ```
 
+## Local Database Performance
+
+The seed script keeps its default behavior of adding 10 sample analyses. For a local benchmark database, pass a file path explicitly:
+
+```bash
+python scripts/seed_db.py --db ./local.db --rows 100000 --batch 5000 --seed 42 --days 365
+python scripts/benchmark_db.py --sizes 50000 100000 --warmup 10 --runs 200 --out scripts/benchmark_results --seed 42
+```
+
+Bulk seeding is limited to local paths and refuses Hugging Face Space databases. The benchmark builds temporary old and new schema databases and saves timings and query plans to the output directory.
+
+`GET /history` accepts `limit` from 1 to 100, `before` as a page cursor or ISO timestamp, and `min_score` as a similarity score filter. Supplying any of these returns an `items` page and a `next_cursor`. Calls without parameters continue to return the full list.
+
 ## Frontend Setup
 
 ```bash

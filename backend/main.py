@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
@@ -9,6 +9,7 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 from database import get_db, AnalysisRecord
+from db_queries import get_history as query_history, get_stats as query_stats
 from schemas import AnalyzeRequest, AnalysisResponse, SectionScores
 from models import ml_models
 from parser import extract_text_from_upload, segment_resume
@@ -140,60 +141,17 @@ def get_analysis(analysis_id: str, db: Session = Depends(get_db)):
     )
 
 @app.get("/history")
-def get_history(db: Session = Depends(get_db)):
-    records = db.query(AnalysisRecord).order_by(AnalysisRecord.timestamp.desc()).all()
-    return [
-        {
-            "id": r.id,
-            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
-            "similarity_score": r.similarity_score,
-            "overall_score": (r.section_scores or {}).get("overall", r.similarity_score),
-            "matched_skills": r.matched_skills or [],
-            "missing_skills": r.missing_skills or [],
-        }
-        for r in records
-    ]
+def get_history(
+    limit: int = Query(None, ge=1, le=100),
+    before: str = Query(None),
+    min_score: float = Query(None),
+    db: Session = Depends(get_db),
+):
+    return query_history(db, limit=limit, before=before, min_score=min_score)
 
 @app.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
-    records = db.query(AnalysisRecord).order_by(AnalysisRecord.timestamp.desc()).all()
-    if not records:
-        return {
-            "avg_score": 0.0,
-            "best_score": 0.0,
-            "recent_avg": 0.0,
-            "total_analyses": 0,
-            "top_missing_skills": [],
-            "top_matched_skills": [],
-            "last_analysis_at": None,
-        }
-
-    scores = [r.similarity_score for r in records]
-    avg_score = sum(scores) / len(scores)
-    best_score = max(scores)
-    recent_scores = scores[:5]
-    recent_avg = sum(recent_scores) / len(recent_scores)
-
-    missing_counts = {}
-    matched_counts = {}
-    for record in records:
-        for skill in record.missing_skills or []:
-            missing_counts[skill] = missing_counts.get(skill, 0) + 1
-        for skill in record.matched_skills or []:
-            matched_counts[skill] = matched_counts.get(skill, 0) + 1
-
-    top_missing = sorted(missing_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-    top_matched = sorted(matched_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-
-    return {
-        "avg_score": avg_score,
-        "best_score": best_score,
-        "recent_avg": recent_avg,
-        "total_analyses": len(records),
-        "top_missing_skills": [{"skill": k, "count": v} for k, v in top_missing],
-        "top_matched_skills": [{"skill": k, "count": v} for k, v in top_matched],
-        "last_analysis_at": records[0].timestamp.isoformat() if records[0].timestamp else None,
-    }
+    return query_stats(db)
 
 @app.delete("/analysis/{analysis_id}")
 def delete_analysis(analysis_id: str, db: Session = Depends(get_db)):
